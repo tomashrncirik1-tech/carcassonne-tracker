@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Carcassonne Tracker</title>
+
+<!-- PWA / iPhone "Add to Home Screen" support -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="Carcassonne">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#1d9e75">
+<link rel="apple-touch-icon" href="icon.png">
+
+<style>
+  :root {
+    --bg: #faf7f0;
+    --surface: #ffffff;
+    --surface-2: #f1eee4;
+    --border: rgba(0,0,0,0.08);
+    --border-strong: rgba(0,0,0,0.15);
+    --text: #2c2c2a;
+    --text-secondary: #6b6a64;
+    --text-tertiary: #9c9b94;
+    --accent: #1d9e75;
+    --accent-dark: #0f6e56;
+    --accent-light: #e1f5ee;
+    --warn: #d85a30;
+    --danger: #c0392b;
+    --radius-md: 8px;
+    --radius-lg: 14px;
+    font-size: 16px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1a1a18;
+      --surface: #242422;
+      --surface-2: #2e2e2b;
+      --border: rgba(255,255,255,0.08);
+      --border-strong: rgba(255,255,255,0.15);
+      --text: #f1eee4;
+      --text-secondary: #b4b2a9;
+      --text-tertiary: #888780;
+      --accent: #5dcaa5;
+      --accent-dark: #9fe1cb;
+      --accent-light: #04342c;
+      --warn: #f0997b;
+      --danger: #f09595;
+    }
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    padding-bottom: calc(env(safe-area-inset-bottom) + 16px);
+  }
+  header {
+    padding: calc(env(safe-area-inset-top) + 16px) 20px 12px;
+    background: var(--surface);
+    border-bottom: 0.5px solid var(--border);
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+  h1 {
+    font-size: 20px;
+    font-weight: 600;
+    margin: 0 0 2px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .status-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--text-tertiary);
+    flex-shrink: 0;
+  }
+  .status-dot.online { background: var(--accent); }
+  .status-dot.offline { background: var(--warn); }
+  .subtitle { font-size: 13px; color: var(--text-secondary); margin: 0; }
+
+  .tabs {
+    display: flex;
+    gap: 4px;
+    padding: 8px 16px 0;
+    background: var(--surface);
+    border-bottom: 0.5px solid var(--border);
+  }
+  .tab-btn {
+    flex: 1;
+    background: none;
+    border: none;
+    padding: 10px 4px;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    border-bottom: 2px solid transparent;
+  }
+  .tab-btn.active { color: var(--text); border-bottom-color: var(--accent); }
+
+  main { padding: 16px; max-width: 600px; margin: 0 auto; }
+  .view { display: none; }
+  .view.active { display: block; }
+
+  .card {
+    background: var(--surface);
+    border: 0.5px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 16px;
+    margin-bottom: 12px;
+  }
+  .hint { font-size: 13px; color: var(--text-secondary); margin: 0 0 12px; }
+
+  select, input, button {
+    font-family: inherit;
+    font-size: 16px;
+    border-radius: var(--radius-md);
+    border: 0.5px solid var(--border-strong);
+    background: var(--surface);
+    color: var(--text);
+    padding: 9px 12px;
+  }
+  select { background-image: none; }
+  button { cursor: pointer; }
+  button:active { transform: scale(0.98); }
+
+  .player-row { display: flex; gap: 8px; margin-bottom: 8px; align-items: center; }
+  .player-row select { flex: 1.4; min-width: 0; }
+  .player-row input { flex: 1; min-width: 0; width: 70px; }
+  .row-remove {
+    width: 36px; height: 36px; padding: 0; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px; color: var(--text-secondary);
+  }
+
+  .btn-add {
+    width: 100%; background: var(--surface-2); border-style: dashed;
+    font-size: 14px; color: var(--text-secondary); margin-top: 4px;
+  }
+  .btn-primary {
+    width: 100%; background: var(--accent); border-color: var(--accent);
+    color: white; font-weight: 600; padding: 13px; margin-top: 16px; font-size: 16px;
+  }
+  .btn-primary:disabled { opacity: 0.5; }
+
+  .date-row { display: flex; align-items: center; gap: 10px; margin-top: 16px; }
+  .date-row label { font-size: 14px; color: var(--text-secondary); }
+  .date-row input[type=date] { flex: 1; }
+
+  .save-msg { font-size: 13px; color: var(--accent); margin-top: 8px; min-height: 18px; }
+
+  .filter-row { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
+  .filter-row label { font-size: 13px; color: var(--text-secondary); }
+  .filter-row select { flex: 1; }
+
+  .stat-card { margin-bottom: 10px; }
+  .stat-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 12px; }
+  .stat-name { font-weight: 600; font-size: 16px; }
+  .stat-games { font-size: 12px; color: var(--text-tertiary); }
+  .stat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .stat-grid.five { grid-template-columns: repeat(3, 1fr); }
+  .metric-label { font-size: 10.5px; color: var(--text-tertiary); margin-bottom: 2px; }
+  .metric-value { font-size: 15px; font-weight: 600; }
+
+  .empty { color: var(--text-secondary); font-size: 14px; text-align: center; padding: 24px 0; }
+
+  .hist-card { margin-bottom: 10px; }
+  .hist-head { display: flex; justify-content: space-between; margin-bottom: 8px; }
+  .hist-date { font-size: 12.5px; color: var(--text-secondary); }
+  .hist-del { width: 32px; height: 32px; padding: 0; color: var(--danger); border-color: transparent; font-size: 15px; }
+  .hist-results { display: flex; flex-wrap: wrap; gap: 6px; }
+  .pill { font-size: 12.5px; background: var(--surface-2); border-radius: 6px; padding: 5px 9px; }
+  .pill.win { background: var(--accent-light); color: var(--accent-dark); font-weight: 600; }
+
+  .toast {
+    position: fixed; bottom: calc(env(safe-area-inset-bottom) + 16px); left: 50%;
+    transform: translateX(-50%);
+    background: var(--text); color: var(--bg);
+    padding: 10px 18px; border-radius: 20px; font-size: 13px;
+    opacity: 0; transition: opacity 0.3s; pointer-events: none;
+    z-index: 100; white-space: nowrap;
+  }
+  .toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1><span class="status-dot" id="status-dot"></span>Carcassonne Tracker</h1>
+  <p class="subtitle" id="subtitle">Připojování...</p>
+</header>
+
+<div class="tabs">
+  <button class="tab-btn active" data-tab="new">Nová hra</button>
+  <button class="tab-btn" data-tab="stats">Statistiky</button>
+  <button class="tab-btn" data-tab="history">Historie</button>
+</div>
+
+<main>
+  <div class="view active" id="view-new">
+    <div class="card">
+      <p class="hint">Vyber hráče, kteří hráli, a zadej jejich body</p>
+      <div id="players-setup"></div>
+      <button class="btn-add" id="add-player-row">+ Přidat hráče do hry</button>
+
+      <div class="date-row">
+        <label>Datum</label>
+        <input type="date" id="game-date">
+      </div>
+
+      <button class="btn-primary" id="save-game">Uložit hru</button>
+      <div class="save-msg" id="save-msg"></div>
+    </div>
+  </div>
+
+  <div class="view" id="view-stats">
+    <div class="filter-row">
+      <label>Filtr</label>
+      <select id="filter-playercount"><option value="all">Všechny hry</option></select>
+    </div>
+    <div id="stats-grid"></div>
+  </div>
+
+  <div class="view" id="view-history">
+    <div id="history-list"></div>
+  </div>
+</main>
+
+<div class="toast" id="toast"></div>
+
+<!-- Firebase SDK (compat build = simplest, works without bundler) -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+
+<script>
+// ====== FIREBASE CONFIG ======
+const firebaseConfig = {
+  apiKey: "AIzaSyDjBnjIuAQWaNIajxTOL743b8YeDQQm2sg",
+  authDomain: "carcassonne-tracker.firebaseapp.com",
+  projectId: "carcassonne-tracker",
+  storageBucket: "carcassonne-tracker.firebasestorage.app",
+  messagingSenderId: "678090308100",
+  appId: "1:678090308100:web:c78fb0ec5e34b4a7225351"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+db.enablePersistence().catch(()=>{});
+
+const GAMES_COL = 'games';
+const ROSTER_DOC = db.collection('meta').doc('roster');
+
+let roster = ['Hráč 1','Hráč 2','Hráč 3','Hráč 4'];
+let games = [];
+let currentRows = [];
+
+function uid(){ return Math.random().toString(36).slice(2,9); }
+function showToast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), 1800);
+}
+function setStatus(online){
+  document.getElementById('status-dot').className = 'status-dot ' + (online ? 'online' : 'offline');
+  document.getElementById('subtitle').textContent = online ? 'Sdílené výsledky skupiny' : 'Offline – data se synchronizují později';
+}
+
+// ---- Realtime listeners ----
+ROSTER_DOC.onSnapshot(doc => {
+  if(doc.exists && doc.data().names){
+    roster = doc.data().names;
+  } else {
+    ROSTER_DOC.set({ names: roster });
+  }
+  renderSetup();
+}, err => setStatus(false));
+
+db.collection(GAMES_COL).orderBy('date','desc').onSnapshot(snap => {
+  games = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  setStatus(true);
+  renderFilterOptions();
+  renderStats();
+  renderHistory();
+}, err => { setStatus(false); });
+
+async function saveRoster(){
+  try { await ROSTER_DOC.set({ names: roster }); } catch(e){ console.error(e); }
+}
+
+// ---- New game form ----
+function renderSetup(){
+  const container = document.getElementById('players-setup');
+  if(currentRows.length === 0){
+    currentRows = [
+      {id: uid(), name: roster[0]||'', score: ''},
+      {id: uid(), name: roster[1]||'', score: ''}
+    ];
+  }
+  container.innerHTML = '';
+  currentRows.forEach(row => {
+    const rowDiv = document.createElement('div');
+    rowDiv.className = 'player-row';
+
+    const select = document.createElement('select');
+    select.innerHTML = roster.map(p => `<option value="${escapeAttr(p)}" ${p===row.name?'selected':''}>${escapeHtml(p)}</option>`).join('') + '<option value="__new__">+ nový hráč</option>';
+    select.addEventListener('change', (e) => {
+      if(e.target.value === '__new__'){
+        const name = prompt('Jméno nového hráče:');
+        if(name && name.trim()){
+          roster.push(name.trim());
+          saveRoster();
+          row.name = name.trim();
+          renderSetup();
+        } else {
+          e.target.value = row.name;
+        }
+      } else {
+        row.name = e.target.value;
+      }
+    });
+
+    const scoreInput = document.createElement('input');
+    scoreInput.type = 'number';
+    scoreInput.inputMode = 'numeric';
+    scoreInput.placeholder = 'Body';
+    scoreInput.value = row.score;
+    scoreInput.addEventListener('input', (e) => { row.score = e.target.value; });
+
+    rowDiv.appendChild(select);
+    rowDiv.appendChild(scoreInput);
+
+    if(currentRows.length > 2){
+      const removeBtn = document.createElement('button');
+      removeBtn.className = 'row-remove';
+      removeBtn.textContent = '✕';
+      removeBtn.setAttribute('aria-label','Odstranit hráče');
+      removeBtn.addEventListener('click', () => {
+        currentRows = currentRows.filter(r => r.id !== row.id);
+        renderSetup();
+      });
+      rowDiv.appendChild(removeBtn);
+    }
+    container.appendChild(rowDiv);
+  });
+}
+function escapeHtml(s){ return String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function escapeAttr(s){ return escapeHtml(s); }
+
+document.getElementById('add-player-row').addEventListener('click', () => {
+  const used = currentRows.map(r=>r.name);
+  const unused = roster.find(p => !used.includes(p));
+  if(unused){
+    currentRows.push({id: uid(), name: unused, score: ''});
+  } else {
+    const name = prompt('Jméno nového hráče:');
+    if(name && name.trim()){
+      roster.push(name.trim());
+      saveRoster();
+      currentRows.push({id: uid(), name: name.trim(), score: ''});
+    } else { return; }
+  }
+  renderSetup();
+});
+
+document.getElementById('game-date').valueAsDate = new Date();
+
+document.getElementById('save-game').addEventListener('click', async () => {
+  const valid = currentRows.filter(r => r.name && r.score !== '');
+  if(valid.length < 2){ showToast('Zadej alespoň 2 hráče s body'); return; }
+  const names = valid.map(r=>r.name);
+  if(new Set(names).size !== names.length){ showToast('Každý hráč může být ve hře jen jednou'); return; }
+
+  const sorted = [...valid].sort((a,b) => Number(b.score) - Number(a.score));
+  const results = sorted.map((r, i) => {
+    let rank = i+1;
+    for(let j=0;j<i;j++){ if(Number(sorted[j].score) === Number(r.score)){ rank = j+1; break; } }
+    return { name: r.name, score: Number(r.score), rank };
+  });
+
+  const btn = document.getElementById('save-game');
+  btn.disabled = true;
+  try {
+    await db.collection(GAMES_COL).add({
+      date: document.getElementById('game-date').value || new Date().toISOString().slice(0,10),
+      playerCount: results.length,
+      results,
+      createdAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    document.getElementById('save-msg').textContent = 'Uloženo!';
+    setTimeout(()=>{ document.getElementById('save-msg').textContent=''; }, 2000);
+    currentRows = [];
+    renderSetup();
+  } catch(e){
+    showToast('Uložení se nezdařilo, zkus to znovu');
+    console.error(e);
+  }
+  btn.disabled = false;
+});
+
+// ---- Stats ----
+function renderFilterOptions(){
+  const sel = document.getElementById('filter-playercount');
+  const counts = [...new Set(games.map(g=>g.playerCount))].sort((a,b)=>a-b);
+  const prev = sel.value;
+  sel.innerHTML = '<option value="all">Všechny hry</option>' + counts.map(c=>`<option value="${c}">${c} hráči</option>`).join('');
+  sel.value = counts.includes(Number(prev)) ? prev : 'all';
+}
+document.getElementById('filter-playercount').addEventListener('change', renderStats);
+
+function computeStats(filterCount){
+  const filtered = filterCount === 'all' ? games : games.filter(g => g.playerCount === Number(filterCount));
+  const byPlayer = {};
+  filtered.forEach(g => {
+    (g.results||[]).forEach(r => {
+      if(!byPlayer[r.name]) byPlayer[r.name] = { games:0, wins:0, ranks:[], scores:[] };
+      byPlayer[r.name].games++;
+      byPlayer[r.name].ranks.push(r.rank);
+      byPlayer[r.name].scores.push(r.score);
+      if(r.rank === 1) byPlayer[r.name].wins++;
+    });
+  });
+  const stats = Object.entries(byPlayer).map(([name, d]) => ({
+    name,
+    games: d.games,
+    wins: d.wins,
+    winPct: Math.round((d.wins/d.games)*100),
+    avgRank: Math.round((d.ranks.reduce((a,b)=>a+b,0)/d.ranks.length)*10)/10,
+    avgScore: Math.round(d.scores.reduce((a,b)=>a+b,0)/d.scores.length),
+    maxScore: Math.max(...d.scores),
+    minScore: Math.min(...d.scores)
+  }));
+  stats.sort((a,b) => b.winPct - a.winPct || a.avgRank - b.avgRank);
+  return stats;
+}
+
+function renderStats(){
+  const filterCount = document.getElementById('filter-playercount').value;
+  const stats = computeStats(filterCount);
+  const grid = document.getElementById('stats-grid');
+  if(stats.length === 0){
+    grid.innerHTML = '<div class="empty">Zatím žádná data.<br>Ulož první hru v záložce "Nová hra".</div>';
+    return;
+  }
+  grid.innerHTML = stats.map((s, i) => `
+    <div class="card stat-card">
+      <div class="stat-head">
+        <span class="stat-name">${i===0?'🏆 ':''}${escapeHtml(s.name)}</span>
+        <span class="stat-games">${s.games} ${s.games===1?'hra':(s.games<5?'hry':'her')}</span>
+      </div>
+      <div class="stat-grid">
+        <div><div class="metric-label">Výhry</div><div class="metric-value">${s.wins}×</div></div>
+        <div><div class="metric-label">% výher</div><div class="metric-value">${s.winPct}%</div></div>
+        <div><div class="metric-label">Prům. pořadí</div><div class="metric-value">${s.avgRank}</div></div>
+        <div><div class="metric-label">Prům. body</div><div class="metric-value">${s.avgScore}</div></div>
+        <div><div class="metric-label">Max body</div><div class="metric-value">${s.maxScore}</div></div>
+        <div><div class="metric-label">Min body</div><div class="metric-value">${s.minScore}</div></div>
+      </div>
+    </div>
+  `).join('');
+}
+
+// ---- History ----
+function renderHistory(){
+  const list = document.getElementById('history-list');
+  if(games.length === 0){
+    list.innerHTML = '<div class="empty">Zatím žádné odehrané hry.</div>';
+    return;
+  }
+  list.innerHTML = games.map(g => `
+    <div class="card hist-card">
+      <div class="hist-head">
+        <span class="hist-date">${escapeHtml(g.date)} · ${g.playerCount} hráči</span>
+        <button class="hist-del" data-id="${g.id}" aria-label="Smazat hru">🗑</button>
+      </div>
+      <div class="hist-results">
+        ${[...(g.results||[])].sort((a,b)=>a.rank-b.rank).map(r => `
+          <span class="pill ${r.rank===1?'win':''}">${r.rank}. ${escapeHtml(r.name)} — ${r.score}</span>
+        `).join('')}
+      </div>
+    </div>
+  `).join('');
+  document.querySelectorAll('.hist-del').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      if(confirm('Smazat tuto hru ze záznamů?')){
+        try { await db.collection(GAMES_COL).doc(btn.dataset.id).delete(); }
+        catch(e){ showToast('Smazání se nezdařilo'); }
+      }
+    });
+  });
+}
+
+// ---- Tabs ----
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('view-'+btn.dataset.tab).classList.add('active');
+  });
+});
+
+renderSetup();
+</script>
+</body>
+</html>
